@@ -20,7 +20,7 @@ def get_db_client():
     Sangat berguna untuk proses deployment di Streamlit Community Cloud.
     """
     try:
-        from prisma import Prisma
+        from src.generated.prisma import Prisma
         db = Prisma()
         return db
     except (ImportError, RuntimeError) as e:
@@ -30,7 +30,7 @@ def get_db_client():
             with st.spinner("Menggenerasi database client Prisma untuk pertama kali... Mohon tunggu..."):
                 if generate_client():
                     try:
-                        from prisma import Prisma
+                        from src.generated.prisma import Prisma
                         db = Prisma()
                         return db
                     except Exception as ex:

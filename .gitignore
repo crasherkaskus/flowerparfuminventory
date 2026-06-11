@@ -121,3 +121,7 @@ venv.bak/
 
 # Streamlit
 .streamlit/
+
+# Generated Prisma Client
+src/generated/
+
