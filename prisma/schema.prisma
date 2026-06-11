@@ -1,0 +1,32 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "sync"
+  recursive_type_depth = 5
+  enable_experimental_decimal = true
+}
+
+model Parfum {
+  id            Int            @id @default(autoincrement())
+  nama_parfum   String
+  stok          Int
+  supplier      String
+  created_at    DateTime       @default(now())
+  riwayat_harga RiwayatHarga[]
+
+  @@map("parfum")
+}
+
+model RiwayatHarga {
+  id             Int      @id @default(autoincrement())
+  parfum_id      Int
+  harga_beli     Decimal  @db.Decimal(12, 2)
+  tanggal_update DateTime @default(now())
+  parfum         Parfum   @relation(fields: [parfum_id], references: [id], onDelete: Cascade)
+
+  @@map("riwayat_harga")
+}
