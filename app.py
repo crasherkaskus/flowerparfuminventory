@@ -133,7 +133,7 @@ if 'riwayat_harga_data' not in st.session_state:
 def get_all_parfum():
     if db_connected and db_client is not None:
         try:
-            parfums = db_client.parfum.find_many(order={"id": "desc"})
+            parfums = db_client.parfum.find_many(order={"id": "asc"})
             data = []
             for p in parfums:
                 data.append({
@@ -146,8 +146,8 @@ def get_all_parfum():
             return pd.DataFrame(data)
         except Exception as e:
             st.error(f"Gagal memuat data parfum dari database: {e}")
-            return pd.DataFrame(st.session_state.parfum_data)
-    return pd.DataFrame(st.session_state.parfum_data)
+            return pd.DataFrame(st.session_state.parfum_data).sort_values("id")
+    return pd.DataFrame(st.session_state.parfum_data).sort_values("id")
 
 def get_all_riwayat():
     if db_connected and db_client is not None:
@@ -291,6 +291,153 @@ def check_parfum_exists(nama):
     matches = [p for p in st.session_state.parfum_data if p["nama_parfum"].strip().lower() == nama_clean]
     return matches[0] if matches else None
 
+def generate_pdf_report(df_parfum, df_riwayat):
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.5*cm,
+        leftMargin=1.5*cm,
+        topMargin=1.5*cm,
+        bottomMargin=1.5*cm
+    )
+    
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Custom Styles
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        textColor=colors.HexColor('#8A2387'),
+        spaceAfter=6
+    )
+    subtitle_style = ParagraphStyle(
+        'SubtitleStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        textColor=colors.HexColor('#555555'),
+        spaceAfter=20
+    )
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10
+    )
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        textColor=colors.white
+    )
+    
+    # Header
+    story.append(Paragraph("LAPORAN INVENTARIS PARFUM & RIWAYAT HARGA", title_style))
+    story.append(Paragraph(f"Dicetak pada: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | ScenTab Inventory", subtitle_style))
+    story.append(Spacer(1, 10))
+    
+    # Table Data
+    headers = [
+        Paragraph("<b>ID</b>", header_style),
+        Paragraph("<b>Nama Parfum</b>", header_style),
+        Paragraph("<b>Harga Sebelumnya</b>", header_style),
+        Paragraph("<b>Harga Terkini</b>", header_style),
+        Paragraph("<b>Stok</b>", header_style),
+        Paragraph("<b>Supplier Utama</b>", header_style),
+        Paragraph("<b>Tanggal Update</b>", header_style)
+    ]
+    
+    data = [headers]
+    
+    # Calculate for each parfum
+    if not df_parfum.empty:
+        for _, row in df_parfum.iterrows():
+            p_id = row['id']
+            nama = row['nama_parfum']
+            stok = str(row['stok'])
+            supplier = row['supplier']
+            
+            # Get history
+            p_history = pd.DataFrame()
+            if not df_riwayat.empty and 'parfum_id' in df_riwayat.columns:
+                p_history = df_riwayat[df_riwayat['parfum_id'] == p_id].sort_values('tanggal_update')
+            
+            harga_sebelumnya = "Rp -"
+            harga_terkini = "Rp 0.00"
+            tanggal_update = "-"
+            
+            if not p_history.empty:
+                history_list = list(p_history['harga_beli'])
+                date_list = list(p_history['tanggal_update'])
+                
+                # Harga Terkini (Paling Baru)
+                harga_terkini = f"Rp {float(history_list[-1]):,.2f}"
+                
+                # Harga Sebelumnya (Sebelum Paling Baru)
+                if len(history_list) > 1:
+                    harga_sebelumnya = f"Rp {float(history_list[-2]):,.2f}"
+                
+                # Tanggal Update (Tanggal terakhir diupdate)
+                last_date = pd.to_datetime(date_list[-1])
+                tanggal_update = last_date.strftime('%Y-%m-%d %H:%M')
+                
+            row_data = [
+                Paragraph(str(p_id), cell_style),
+                Paragraph(nama, cell_style),
+                Paragraph(harga_sebelumnya, cell_style),
+                Paragraph(harga_terkini, cell_style),
+                Paragraph(stok, cell_style),
+                Paragraph(supplier, cell_style),
+                Paragraph(tanggal_update, cell_style)
+            ]
+            data.append(row_data)
+        
+    # Create Table
+    # Margins are 1.5cm left/right = 3.0cm = 85 points. Printable width is 510 points.
+    col_widths = [30, 110, 85, 85, 40, 80, 80]
+    
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    
+    # Table Styling
+    t_style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8A2387')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+    ])
+    
+    # Alternating row colors
+    for i in range(1, len(data)):
+        bg_color = colors.HexColor('#FFFFFF') if i % 2 != 0 else colors.HexColor('#F8F9FA')
+        t_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
+        t_style.add('TOPPADDING', (0, i), (-1, i), 6)
+        t_style.add('BOTTOMPADDING', (0, i), (-1, i), 6)
+        
+    table.setStyle(t_style)
+    story.append(table)
+    
+    # Build document
+    doc.build(story)
+    
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+
 
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
@@ -395,6 +542,29 @@ if menu == "📊 Dashboard & Analisis":
         )
     else:
         st.info("Belum ada data riwayat harga yang cukup untuk ditampilkan.")
+
+    # Section Cetak Laporan PDF
+    st.markdown("---")
+    st.subheader("📋 Laporan Inventaris (PDF)")
+    st.write("Cetak laporan stok inventaris parfum dan riwayat perubahan harga saat ini dalam bentuk dokumen A4 PDF.")
+    
+    # Tombol Cetak PDF
+    if st.button("🔄 Generate Laporan PDF"):
+        with st.spinner("Sedang memproses laporan PDF..."):
+            try:
+                pdf_data = generate_pdf_report(df_parfum, df_riwayat)
+                st.session_state.pdf_report_bytes = pdf_data
+                st.success("Laporan PDF berhasil dibuat! Silakan klik tombol Download di bawah untuk mengunduh berkas.")
+            except Exception as e:
+                st.error(f"Gagal membuat laporan PDF: {e}")
+                
+    if 'pdf_report_bytes' in st.session_state and st.session_state.pdf_report_bytes is not None:
+        st.download_button(
+            label="📥 Download Laporan (PDF)",
+            data=st.session_state.pdf_report_bytes,
+            file_name=f"laporan_inventaris_parfum_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf"
+        )
 
 # --- PAGE 2: KELOLA PARFUM ---
 elif menu == "📦 Kelola Parfum":
