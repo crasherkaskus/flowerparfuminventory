@@ -7,8 +7,12 @@ import os
 # --- PINDAHKAN STREAMLIT SECRETS KE ENVIRONMENT VARIABLE UNTUK PRISMA ---
 # Di Streamlit Community Cloud, rahasia disimpan di st.secrets.
 # Prisma membutuhkan DATABASE_URL di env variable sistem (os.environ).
-if "DATABASE_URL" in st.secrets:
-    os.environ["DATABASE_URL"] = st.secrets["DATABASE_URL"]
+try:
+    if "DATABASE_URL" in st.secrets:
+        os.environ["DATABASE_URL"] = st.secrets["DATABASE_URL"]
+except Exception:
+    # Mengabaikan error jika secrets.toml tidak ditemukan saat dijalankan di lokal
+    pass
 
 
 # Set page layout and config
