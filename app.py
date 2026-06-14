@@ -17,10 +17,35 @@ except Exception:
 
 # Set page layout and config
 st.set_page_config(
-    page_title="ScenTab - Parfum Inventory & Price History",
+    page_title="Aplikasi Inventory Flower Parfum",
     page_icon="🧪",
     layout="wide",
     initial_sidebar_state="expanded"
+)
+
+# JavaScript helper to automatically dismiss sticky Vega tooltips during page scroll/touchmove on mobile devices
+import streamlit.components.v1 as components
+components.html(
+    """
+    <script>
+        try {
+            const hideTooltip = () => {
+                const tooltip = window.parent.document.getElementById('vg-tooltip-element');
+                if (tooltip) {
+                    tooltip.style.display = 'none';
+                    tooltip.style.visibility = 'hidden';
+                }
+            };
+            // Listen to scroll and touch movements on the main Streamlit page
+            window.parent.addEventListener('scroll', hideTooltip, true);
+            window.parent.document.addEventListener('touchmove', hideTooltip, true);
+        } catch (e) {
+            console.error("Gagal memasang pendengar auto-close tooltip:", e);
+        }
+    </script>
+    """,
+    height=0,
+    width=0
 )
 
 # Custom premium styling
@@ -442,7 +467,7 @@ def generate_pdf_report(df_parfum, df_riwayat):
 # --- SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.image("https://images.unsplash.com/photo-1547887537-6158d64c35b3?auto=format&fit=crop&q=80&w=200&h=200", width=120)
-    st.markdown("## ScenTab Inventory")
+    st.markdown("## Flower Parfum Inventory")
     st.markdown("Aplikasi inventory parfum eksklusif dengan riwayat pelacakan harga.")
     
     # Mode Status Indicator
@@ -464,7 +489,7 @@ with st.sidebar:
 
 # --- PAGE 1: DASHBOARD ---
 if menu == "📊 Dashboard & Analisis":
-    st.markdown('<div class="main-title">🧪 ScenTab Inventory Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">🧪 Aplikasi Inventory Flower Parfum</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Analisis Stok Parfum dan Riwayat Tren Harga Terkini</div>', unsafe_allow_html=True)
     
     # Load Data
